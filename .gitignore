@@ -1,0 +1,10 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Python
+*.pyc
+__pycache__/
+
+# data
+*.txt
