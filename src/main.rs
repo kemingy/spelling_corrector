@@ -5,28 +5,26 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::cmp::Ordering;
 
 fn main() {
     let word_counter = build_word_counter("./small.txt");
-    
-    // println!("{:?}", word_counter);
 
-    // println!("get value of a: {}", prob(&word_counter, "a"));
-
-    // println!("get value of unknown {:?}", word_counter.get("fuck"));
-
-    // println!("Known words: {:?}", known(vec!["haha", "a"], &word_counter));
-
-    // println!("Edits of word: {:?}", edits("hello"));
-
-    // println!("Edits of word: {:?}", edits_twice("hello"));
-
-    println!("{}", correction("word", &word_counter));
+    println!("{}", correction("Adventura", &word_counter));
 }
 
 fn correction(word: &str, counter: &HashMap<String, i32>) -> String {
-    candidates(word, counter).iter().max_by_key(|x| 
-        prob(counter, word)
+    candidates(word, counter).iter().max_by(|x, y| {
+            let prob_x = prob(counter, x);
+            let prob_y = prob(counter, y);
+            if prob_x > prob_y {
+                Ordering::Greater
+            } else if prob_x < prob_y {
+                Ordering::Less
+            } else {
+                Ordering::Equal
+            }
+        }
     ).unwrap().to_string()
 }
 
