@@ -1,9 +1,15 @@
+'''
+How to Write a Spelling Corrector
+author: Peter Norvig
+url: http://norvig.com/spell-correct.html
+'''
+
 import re
 from collections import Counter
 
 def words(text): return re.findall(r'\w+', text.lower())
 
-WORDS = Counter(words(open('sherlock_holmes.txt').read()))
+WORDS = Counter(words(open('big.txt').read()))
 
 def P(word, N=sum(WORDS.values())): 
     "Probability of `word`."
