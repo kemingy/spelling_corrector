@@ -2,14 +2,26 @@ extern crate regex;
 
 use regex::Regex;
 use std::fs::File;
-use std::io::prelude::*;
+use std::io::{self, Read};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::cmp::Ordering;
 
 fn main() {
-    let word_counter = build_word_counter("./small.txt");
+    let word_counter = build_word_counter("./sherlock.txt");
 
+    let mut input = String::new();
+    loop {
+        match io::stdin().read_line(&mut input) {
+            Ok(_) => {
+                println!("{} is corrected to {}", input, correction(&input, &word_counter));
+            }
+            Err(error) => {
+                println!("error: {}", error);
+                break;
+            }
+        }
+    }
     println!("{}", correction("Adventura", &word_counter));
 }
 
