@@ -1,7 +1,7 @@
 extern crate regex;
 extern crate hashbrown;
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 
 use regex::Regex;
 use std::fs::File;
@@ -37,7 +37,7 @@ impl Dictionary {
         self.counter.len()
     }
 
-    fn known(&self, words: &mut HashSet<String>) -> usize {
+    fn known(&self, words: &mut Vec<String>) -> usize {
         words.retain(|word| self.counter.contains_key(word));
         words.len()
     }
@@ -50,9 +50,8 @@ impl Dictionary {
         }).unwrap().to_string()
     }
 
-    fn candidates(&self, word: &str) -> HashSet<String> {
-        let mut cands: HashSet<String> = HashSet::new();
-        cands.insert(word.to_string());
+    fn candidates(&self, word: &str) -> Vec<String> {
+        let cands: Vec<String> = vec![word.to_string()];
         if self.known(&mut cands.clone()) > 0 {
             cands
         } else {
@@ -71,7 +70,7 @@ impl Dictionary {
     }
 }
 
-fn edit_once(word: &str) -> HashSet<String> {
+fn edit_once(word: &str) -> Vec<String> {
     let splits = (0..=word.len())
         .map(|i| (&word[..i], &word[i..]))
         .collect::<Vec<_>>();
@@ -99,20 +98,18 @@ fn edit_once(word: &str) -> HashSet<String> {
             .collect::<Vec<_>>()
         ).collect::<Vec<_>>();
 
-    let mut candidates = HashSet::new();
+    let mut candidates = vec![];
     for words in [deletes, transposes, replaces, inserts].iter() {
-        for word in words {
-            candidates.insert(word.to_string());
-        }
+        candidates.extend(words.iter().cloned());
     }
     candidates
 }
 
-fn edit_twice(word: &str) -> HashSet<String> {
-    let mut candidates = HashSet::new();
+fn edit_twice(word: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
     for once in edit_once(word).iter() {
         for twice in edit_once(once).iter() {
-            candidates.insert(twice.to_string());
+            candidates.push(twice.to_string());
         }
     }
     candidates
