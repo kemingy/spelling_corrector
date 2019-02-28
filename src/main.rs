@@ -1,141 +1,131 @@
 extern crate regex;
+extern crate hashbrown;
+
+use hashbrown::{HashMap, HashSet};
 
 use regex::Regex;
 use std::fs::File;
-use std::io::{self, Read};
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::cmp::Ordering;
+use std::io::Read;
+use std::error;
+use std::time::Instant;
 
-fn main() {
-    let word_counter = build_word_counter("./sherlock.txt");
 
-    let mut input = String::new();
-    loop {
-        match io::stdin().read_line(&mut input) {
-            Ok(_) => {
-                println!("{} is corrected to {}", input, correction(&input, &word_counter));
-            }
-            Err(error) => {
-                println!("error: {}", error);
-                break;
-            }
-        }
-    }
-    println!("{}", correction("Adventura", &word_counter));
+const ALPHABET: &str = "abcdefghijklmnopqrstuvwxyz";
+
+#[derive(Debug)]
+struct Dictionary {
+    counter: HashMap<String, u32>,
 }
 
-fn correction(word: &str, counter: &HashMap<String, i32>) -> String {
-    candidates(word, counter).iter().max_by(|x, y| {
-            let prob_x = prob(counter, x);
-            let prob_y = prob(counter, y);
-            if prob_x > prob_y {
-                Ordering::Greater
-            } else if prob_x < prob_y {
-                Ordering::Less
+impl Dictionary {
+    fn new(filepath: &str) -> Result<Dictionary, Box<error::Error>> {
+        let mut f = File::open(filepath)?;
+        let mut contents = String::new();
+        f.read_to_string(&mut contents)?;
+
+        let re = Regex::new(r"\w+")?;
+        let mut counter: HashMap<String, u32> = HashMap::new();
+        for cap in re.captures_iter(&contents) {
+            let word = cap[0].to_lowercase();
+            *counter.entry(word).or_insert(0) += 1;
+        }
+
+        Ok(Dictionary {counter: counter})
+    }
+
+    fn capacity(&self) -> usize {
+        self.counter.len()
+    }
+
+    fn known(&self, words: &mut HashSet<String>) -> usize {
+        words.retain(|word| self.counter.contains_key(word));
+        words.len()
+    }
+
+    fn correct(&self, word: &str) -> String {
+        self.candidates(word).iter().max_by(|&x, &y| {
+            let count_x = self.counter.get(x);
+            let count_y = self.counter.get(y);
+            count_x.cmp(&count_y)
+        }).unwrap().to_string()
+    }
+
+    fn candidates(&self, word: &str) -> HashSet<String> {
+        let mut cands: HashSet<String> = HashSet::new();
+        cands.insert(word.to_string());
+        if self.known(&mut cands.clone()) > 0 {
+            cands
+        } else {
+            let mut edition = edit_once(word);
+            if self.known(&mut edition) > 0 {
+                edition
             } else {
-                Ordering::Equal
-            }
-        }
-    ).unwrap().to_string()
-}
-
-fn candidates(word: &str, counter: &HashMap<String, i32>) -> HashSet<String> {
-    let mut origin: HashSet<String> = HashSet::new();
-    origin.insert(word.to_string());
-    match known(&origin, counter) {
-        Some(words) => words,
-        None => match known(&edits(word), counter) {
-            Some(words) => words,
-            None => match known(&edits_twice(word), counter) {
-                Some(words) => words,
-                None => origin,
+                let mut edition = edit_twice(word);
+                if self.known(&mut edition) > 0 {
+                    edition
+                } else {
+                    cands
+                }
             }
         }
     }
 }
 
-fn prob(counter: &HashMap<String, i32>, word: &str) -> f32 {
-    match counter.get(word) {
-        Some(num) => *num as f32 / counter.len() as f32,
-        None => 0f32,
-    }
-}
-
-fn known(words: &HashSet<String>, counter: &HashMap<String, i32>) -> Option<HashSet<String>> {
-    let mut known_words: HashSet<String> = HashSet::new();
-    for word in words {
-        if counter.contains_key(word) {
-            known_words.insert(word.to_string());
-        }
-    }
-    if known_words.len() > 0 {
-        Some(known_words)
-    } else {
-        None
-    }
-}
-
-fn build_word_counter(filepath: &str) -> HashMap<String, i32> {
-    let mut file = File::open(filepath).unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-
-    let re = Regex::new(r"\w+").unwrap();
-    let mut word_counter: HashMap<String, i32> = HashMap::new();
-    for cap in re.captures_iter(&contents) {
-        let word = cap[0].to_lowercase();
-        let counter = word_counter.entry(word).or_insert(0);
-        *counter += 1;
-    }
-
-    word_counter
-}
-
-fn edits(word: &str) -> HashSet<String> {
-    let letters = "abcdefghijklmnopqrstuvwxyz";
-    let splits = (0..word.len() + 1)
+fn edit_once(word: &str) -> HashSet<String> {
+    let splits = (0..=word.len())
         .map(|i| (&word[..i], &word[i..]))
         .collect::<Vec<_>>();
 
     let deletes = splits.iter()
         .filter(|(_, right)| right.len() > 0)
-        .map(|(left, right)| left.to_string() + &right[1..].to_string())
+        .map(|(left, right)| [left, &right[1..]].concat())
         .collect::<Vec<_>>();
 
     let transposes = splits.iter()
         .filter(|(_, right)| right.len() > 1)
-        .map(|(left, right)| left.to_string() + &right[1..2] + &right[0..1] + &right[2..])
+        .map(|(left, right)| [left, &right[1..2], &right[0..1], &right[2..]].concat())
         .collect::<Vec<_>>();
 
-    let replaces = (0..letters.len()).flat_map(|i|
+    let replaces = (0..26).flat_map(|i|
         splits.iter()
-              .filter(|(_, right)| right.len() > 0)
-              .map(|(left, right)| left.to_string() + &letters[i..i+1] + &right[1..])
-              .collect::<Vec<_>>()
-    ).collect::<Vec<_>>();
+            .filter(|(_, right)| right.len() > 0)
+            .map(|(left, right)| [left, &ALPHABET[i..i+1], &right[1..]].concat())
+            .collect::<Vec<_>>()
+        ).collect::<Vec<_>>();
 
-    let inserts = (0..letters.len()).flat_map(|i|
+    let inserts = (0..26).flat_map(|i|
         splits.iter()
-              .map(|(left, right)| left.to_string() + &letters[i..i+1] + &right.to_string())
-              .collect::<Vec<_>>()
-    ).collect::<Vec<_>>();
+            .map(|(left, right)| [left, &ALPHABET[i..i+1], right].concat())
+            .collect::<Vec<_>>()
+        ).collect::<Vec<_>>();
 
-    let mut condidates: HashSet<String> = HashSet::new();
+    let mut candidates = HashSet::new();
     for words in [deletes, transposes, replaces, inserts].iter() {
         for word in words {
-            condidates.insert(word.to_string());
-        }
-    }
-    condidates
-}
-
-fn edits_twice(word: &str) -> HashSet<String> {
-    let mut candidates: HashSet<String> = HashSet::new();
-    for edit_once in edits(word).iter() {
-        for edit_twice in edits(edit_once).iter() {
-            candidates.insert(edit_twice.to_string());
+            candidates.insert(word.to_string());
         }
     }
     candidates
+}
+
+fn edit_twice(word: &str) -> HashSet<String> {
+    let mut candidates = HashSet::new();
+    for once in edit_once(word).iter() {
+        for twice in edit_once(once).iter() {
+            candidates.insert(twice.to_string());
+        }
+    }
+    candidates
+}
+
+fn main() {
+    let dic = Dictionary::new("./sherlock.txt").unwrap();
+    println!("Capacity: {}", dic.capacity());
+
+    for word in vec!["helle", "world", "pythn", "nica", "dictionere"] {
+        let start = Instant::now();
+        println!("{} is corrected to {}", word, dic.correct(word));
+        let duration = start.elapsed();
+        println!("Finished in {:?}", duration);
+    }
 }
