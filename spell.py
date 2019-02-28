@@ -6,6 +6,7 @@ url: http://norvig.com/spell-correct.html
 
 import re
 from collections import Counter
+from time import time
 
 
 def words(text): return re.findall(r'\w+', text.lower())
@@ -57,4 +58,6 @@ if __name__ == '__main__':
         if word == 'exit':
             break
 
+        t0 = time()
         print('correct: ', correction(word))
+        print('Finished in {:.6f} ms'.format(1000 * (time() - t0)))
