@@ -72,47 +72,38 @@ impl Dictionary {
 
 fn edit_once(word: &str) -> Vec<String> {
     let splits = (0..=word.len())
-        .map(|i| (&word[..i], &word[i..]))
-        .collect::<Vec<_>>();
+        .map(|i| (&word[..i], &word[i..]));
 
-    let deletes = splits.iter()
+    let deletes = splits.clone()
         .filter(|(_, right)| right.len() > 0)
-        .map(|(left, right)| [left, &right[1..]].concat())
-        .collect::<Vec<_>>();
+        .map(|(left, right)| [left, &right[1..]].concat());
 
-    let transposes = splits.iter()
+    let transposes = splits.clone()
         .filter(|(_, right)| right.len() > 1)
-        .map(|(left, right)| [left, &right[1..2], &right[0..1], &right[2..]].concat())
-        .collect::<Vec<_>>();
+        .map(|(left, right)| [left, &right[1..2], &right[0..1], &right[2..]].concat());
 
     let replaces = (0..26).flat_map(|i|
-        splits.iter()
+        splits.clone()
             .filter(|(_, right)| right.len() > 0)
-            .map(|(left, right)| [left, &ALPHABET[i..i+1], &right[1..]].concat())
-            .collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
+            .map(move |(left, right)| [left, &ALPHABET[i..i+1], &right[1..]].concat())
+        );
 
-    let inserts = (0..26).flat_map(|i|
-        splits.iter()
-            .map(|(left, right)| [left, &ALPHABET[i..i+1], right].concat())
-            .collect::<Vec<_>>()
-        ).collect::<Vec<_>>();
+    let splits_clone = splits.clone();
+    let inserts = (0..26).flat_map(move |i|
+        splits_clone.clone()
+            .map(move |(left, right)| [left, &ALPHABET[i..i+1], right].concat())
+        );
 
     let mut candidates = vec![];
-    for words in [deletes, transposes, replaces, inserts].iter() {
-        candidates.extend(words.iter().cloned());
-    }
+    candidates.extend(deletes);
+    candidates.extend(transposes);
+    candidates.extend(replaces);
+    candidates.extend(inserts);
     candidates
 }
 
 fn edit_twice(word: &str) -> Vec<String> {
-    let mut candidates = Vec::new();
-    for once in edit_once(word).iter() {
-        for twice in edit_once(once).iter() {
-            candidates.push(twice.to_string());
-        }
-    }
-    candidates
+    edit_once(word).into_iter().flat_map(|once| edit_once(&once)).collect()
 }
 
 fn main() {
